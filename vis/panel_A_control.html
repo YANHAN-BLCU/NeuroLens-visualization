@@ -1,0 +1,746 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Control Panel A</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+
+        body {
+            padding: 16px;
+            background-color: #ffffff;
+            height: 100vh;
+            overflow: auto;
+        }
+
+        .panel-header {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            color: #333;
+        }
+
+        .section {
+            margin-bottom: 20px;
+        }
+
+        .section-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #666;
+            margin-bottom: 8px;
+        }
+
+        .form-group {
+            margin-bottom: 12px;
+        }
+
+        label {
+            display: block;
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 4px;
+        }
+
+        select, input[type="text"], input[type="number"] {
+            width: 100%;
+            padding: 6px 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+
+        button {
+            padding: 8px 16px;
+            background-color: #2563eb;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            margin-right: 8px;
+            margin-top: 8px;
+        }
+
+        button:hover {
+            background-color: #1d4ed8;
+        }
+
+        button.secondary {
+            background-color: #6b7280;
+        }
+
+        button.secondary:hover {
+            background-color: #4b5563;
+        }
+
+        .info-text {
+            font-size: 12px;
+            color: #666;
+            margin-top: 4px;
+        }
+
+        .input-group {
+            display: flex;
+            gap: 8px;
+            align-items: stretch;
+        }
+
+        .input-group input {
+            flex: 1;
+            height: 32px;
+        }
+
+        .input-group button {
+            height: 32px;
+            margin-top: 0;
+            white-space: nowrap;
+        }
+
+        .inline-group {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+            flex-wrap: nowrap;
+        }
+
+        .inline-group select {
+            flex: 0 0 auto;
+            width: auto;
+            min-width: 120px;
+            max-width: 150px;
+            padding: 5px 6px;
+            font-size: 12px;
+        }
+
+        .inline-group button {
+            margin-top: 0;
+            padding: 5px 12px;
+            font-size: 12px;
+            white-space: nowrap;
+        }
+    </style>
+</head>
+<body>
+    <div class="panel-header" data-i18n="controlPanel">Control Panel A</div>
+
+    <div class="section">
+        <div class="section-title" data-i18n="model">Model</div>
+        <div class="form-group">
+            <label data-i18n="selectModelFolder">Select Model Folder</label>
+            <div class="input-group">
+                <input type="text" id="modelPath" data-i18n-placeholder="noFolderSelected" placeholder="No folder selected" readonly>
+                <button id="browseBtn" data-i18n="browse">Browse</button>
+                <input type="file" id="folderInput" webkitdirectory style="display: none;">
+            </div>
+            <div class="info-text" id="modelInfo" data-i18n="current">Current:</div>
+        </div>
+        <div class="form-group">
+            <div class="inline-group">
+                <select id="modelSelect">
+                    <option value="llama-3-8b">Llama-3-8B</option>
+                    <option value="llama-3-70b">Llama-3-70B</option>
+                </select>
+                <button id="uploadBtn" data-i18n="upload">Upload</button>
+                <button class="secondary" id="exportBtn" data-i18n="export">Export</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="section">
+        <div class="section-title" data-i18n="onlineAPI">Online API</div>
+        <div class="form-group">
+            <label data-i18n="provider">Provider</label>
+            <select id="apiProvider" style="width: 100%;">
+                <option value="openai">OpenAI</option>
+                <option value="anthropic">Anthropic (Claude)</option>
+                <option value="google">Google (Gemini)</option>
+                <option value="mistral">Mistral AI</option>
+                <option value="cohere">Cohere</option>
+                <option value="together">Together AI</option>
+                <option value="azure">Azure OpenAI</option>
+                <option value="aws">Amazon Bedrock</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label data-i18n="model">Model</label>
+            <select id="apiModel" style="width: 100%;">
+                <!-- 动态生成 -->
+            </select>
+        </div>
+        <div class="form-group">
+            <label data-i18n="apiKey">API Key</label>
+            <input type="password" id="apiKey" placeholder="Enter API key">
+        </div>
+        <div class="form-group" id="baseUrlGroup" style="display: none;">
+            <label data-i18n="baseUrlOptional">Base URL (Optional)</label>
+            <input type="text" id="baseUrl" placeholder="https://api.example.com/v1">
+        </div>
+        <div class="form-group">
+            <div class="inline-group">
+                <button id="connectBtn" data-i18n="connect" style="margin-top: 0;">Connect</button>
+                <button class="secondary" id="disconnectBtn" data-i18n="disconnect" style="margin-top: 0;">Disconnect</button>
+            </div>
+        </div>
+        <div class="info-text" id="apiStatus" data-i18n="statusNotConnected">Status: Not connected</div>
+    </div>
+
+    <div class="section">
+        <div class="section-title" data-i18n="fineTuning">Fine-Tuning</div>
+        <div class="form-group">
+            <div class="inline-group">
+                <label style="margin-bottom: 0; white-space: nowrap;" data-i18n="epoch">Epoch:</label>
+                <input type="number" id="epochInput" value="10" min="1" max="100" style="width: 60px; flex: 0 0 auto;">
+                <label style="margin-bottom: 0; white-space: nowrap;" data-i18n="learningRate">Learning Rate:</label>
+                <input type="text" id="learningRateInput" value="5e-5" pattern="[0-9.eE+-]+" style="width: 80px; flex: 0 0 auto;">
+            </div>
+        </div>
+        <div class="form-group">
+            <button id="startBtn" data-i18n="start">Start</button>
+            <button class="secondary" id="pauseBtn" data-i18n="pause">Pause</button>
+        </div>
+    </div>
+
+    <div class="section">
+        <div class="section-title" data-i18n="safetyNeuron">Safety Neuron</div>
+        <div class="form-group">
+            <div class="inline-group">
+                <label for="sparsityInput" style="margin-bottom: 0; white-space: nowrap;" data-i18n="sparsity">Sparsity (%)</label>
+                <input type="number" id="sparsityInput" value="0.34" step="0.01" min="0" max="100" style="width: 80px; flex: 0 0 auto;">
+            </div>
+        </div>
+        <div class="form-group">
+            <div class="inline-group">
+                <label for="pInput" style="margin-bottom: 0; white-space: nowrap;" data-i18n="p">P</label>
+                <input type="number" id="pInput" value="0.1" step="0.01" min="0" max="1" style="width: 80px; flex: 0 0 auto;">
+                <label for="qInput" style="margin-bottom: 0; white-space: nowrap;" data-i18n="q">Q</label>
+                <input type="number" id="qInput" value="0.1" step="0.01" min="0" max="1" style="width: 80px; flex: 0 0 auto;">
+                <button id="setBtn" data-i18n="set" style="margin-top: 0; margin-left: 12px; padding: 6px 16px; font-size: 13px;">Set</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="section">
+        <div class="section-title" data-i18n="configuration">Configuration</div>
+        <div class="form-group">
+            <div class="inline-group">
+                <label style="margin-bottom: 0; white-space: nowrap; width: 80px; flex: 0 0 80px;" data-i18n="layers">Layers</label>
+                <select id="layersSelect" style="flex: 1;">
+                    <option value="all" data-i18n="allLayers">All Layers</option>
+                    <option value="0-16" data-i18n="layersRange">Layers 0-16</option>
+                    <option value="17-32" data-i18n="layersRange">Layers 17-32</option>
+                </select>
+            </div>
+        </div>
+        <div class="form-group">
+            <div class="inline-group">
+                <label style="margin-bottom: 0; white-space: nowrap; width: 80px; flex: 0 0 80px;" data-i18n="quadrants">Quadrants</label>
+                <select id="quadrantsSelect" style="flex: 1;">
+                    <option value="all" data-i18n="allQuadrants">All Quadrants</option>
+                    <option value="q1" data-i18n="quadrant">Quadrant 1</option>
+                    <option value="q2" data-i18n="quadrant">Quadrant 2</option>
+                    <option value="q3" data-i18n="quadrant">Quadrant 3</option>
+                    <option value="q4" data-i18n="quadrant">Quadrant 4</option>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <div class="section">
+        <div class="form-group">
+            <button id="xBreakBtn" data-i18n="xBreak" style="background-color: #ef4444;">X Break</button>
+        </div>
+    </div>
+
+    <script>
+        // 存储模型路径
+        let currentModelPath = localStorage.getItem('modelPath') || '';
+        
+        // 初始化显示保存的路径
+        if (currentModelPath) {
+            document.getElementById('modelPath').value = currentModelPath;
+            const folderName = currentModelPath.split(/[/\\]/).pop();
+            const t = translationsA[localStorage.getItem('language') || 'en'];
+            document.getElementById('modelInfo').textContent = (t ? t.current : 'Current:') + ' ' + folderName;
+        }
+
+        // 文件夹选择
+        document.getElementById('browseBtn').addEventListener('click', function() {
+            document.getElementById('folderInput').click();
+        });
+
+        document.getElementById('folderInput').addEventListener('change', function(e) {
+            const files = e.target.files;
+            if (files.length > 0) {
+                // 获取webkitRelativePath或使用文件名的父文件夹
+                const folderPath = files[0].webkitRelativePath || files[0].name;
+                const fullPath = folderPath.split('/')[0];
+                
+                // 保存到 localStorage
+                localStorage.setItem('modelPath', fullPath);
+                currentModelPath = fullPath;
+                
+                // 更新显示
+                document.getElementById('modelPath').value = fullPath;
+                const folderName = fullPath.split(/[/\\]/).pop();
+                const t = translationsA[localStorage.getItem('language') || 'en'];
+            document.getElementById('modelInfo').textContent = (t ? t.current : 'Current:') + ' ' + folderName;
+                
+                console.log('Model folder selected:', fullPath);
+                
+                // 广播消息给其他面板
+                broadcastMessage({
+                    type: 'modelChanged',
+                    path: fullPath,
+                    name: folderName
+                });
+            }
+        });
+
+        // 广播消息给其他 iframe
+        function broadcastMessage(data) {
+            data.source = 'panelA';
+            window.parent.postMessage(data, '*');
+        }
+
+        // 简单的交互逻辑
+        document.getElementById('uploadBtn').addEventListener('click', function() {
+            const modelPath = document.getElementById('modelPath').value;
+            if (!modelPath) {
+                alert('Please select a model folder first');
+                return;
+            }
+            console.log('Upload model from:', modelPath);
+            
+            broadcastMessage({
+                type: 'loadModel',
+                path: modelPath
+            });
+        });
+
+        document.getElementById('exportBtn').addEventListener('click', function() {
+            console.log('Export model');
+            alert('Export functionality - Model path: ' + (currentModelPath || 'Default'));
+        });
+
+        document.getElementById('startBtn').addEventListener('click', function() {
+            console.log('Fine-tuning started');
+        });
+
+        document.getElementById('pauseBtn').addEventListener('click', function() {
+            console.log('Fine-tuning paused');
+        });
+
+        document.getElementById('setBtn').addEventListener('click', function() {
+            const p = document.getElementById('pInput').value;
+            const q = document.getElementById('qInput').value;
+            console.log('Safety neuron parameters set:', { p, q });
+        });
+
+        document.getElementById('xBreakBtn').addEventListener('click', function() {
+            console.log('X Break action triggered');
+        });
+
+        // 验证学习率输入
+        document.getElementById('learningRateInput').addEventListener('blur', function() {
+            const value = this.value.trim();
+            if (value && isNaN(parseFloat(value))) {
+                alert('请输入有效的数字（支持科学计数法，如 5e-5）');
+                this.value = '5e-5';
+            }
+        });
+
+        // 模型选择变更
+        document.getElementById('modelSelect').addEventListener('change', function() {
+            const modelName = this.options[this.selectedIndex].text;
+            const t = translationsA[localStorage.getItem('language') || 'en'];
+            document.getElementById('modelInfo').textContent = (t ? t.current : 'Current:') + ' ' + modelName;
+            broadcastMessage({
+                type: 'modelChanged',
+                name: modelName
+            });
+        });
+
+        // API Provider 配置
+        const apiProviders = {
+            openai: {
+                name: 'OpenAI',
+                models: [
+                    { value: 'gpt-5.3-codex', label: 'GPT-5.3 Codex' },
+                    { value: 'gpt-5.2', label: 'GPT-5.2' },
+                    { value: 'gpt-5.2-codex', label: 'GPT-5.2 Codex' },
+                    { value: 'gpt-4.1', label: 'GPT-4.1' },
+                    { value: 'gpt-4.1-mini', label: 'GPT-4.1 mini' },
+                    { value: 'o4-mini', label: 'o4-mini' },
+                    { value: 'gpt-4o-mini', label: 'GPT-4o mini' },
+                    { value: 'gpt-4o', label: 'GPT-4o' },
+                    { value: 'gpt-4', label: 'GPT-4' },
+                    { value: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo' }
+                ],
+                baseUrl: 'https://api.openai.com/v1',
+                hasBaseUrl: false
+            },
+            anthropic: {
+                name: 'Anthropic',
+                models: [
+                    { value: 'claude-opus-4-6-20250514', label: 'Claude Opus 4.6' },
+                    { value: 'claude-sonnet-4-6-20250514', label: 'Claude Sonnet 4.6' },
+                    { value: 'claude-3.5-sonnet-20241022', label: 'Claude 3.5 Sonnet' },
+                    { value: 'claude-3.5-haiku-20241022', label: 'Claude 3.5 Haiku' },
+                    { value: 'claude-3-opus-20240229', label: 'Claude 3 Opus' },
+                    { value: 'claude-3-haiku-20240307', label: 'Claude 3 Haiku' }
+                ],
+                baseUrl: 'https://api.anthropic.com/v1',
+                hasBaseUrl: false
+            },
+            google: {
+                name: 'Google',
+                models: [
+                    { value: 'gemini-2.5-pro-preview-05-20', label: 'Gemini 3.1 Pro' },
+                    { value: 'gemini-2.0-pro', label: 'Gemini 3 Pro' },
+                    { value: 'gemini-2.0-flash', label: 'Gemini 3 Flash' },
+                    { value: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro' },
+                    { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
+                    { value: 'gemini-1.5-pro-002', label: 'Gemini 1.5 Pro 002' },
+                    { value: 'gemini-1.5-flash-002', label: 'Gemini 1.5 Flash 002' }
+                ],
+                baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
+                hasBaseUrl: true
+            },
+            mistral: {
+                name: 'Mistral AI',
+                models: [
+                    { value: 'mistral-large-3-2505', label: 'Mistral Large 3' },
+                    { value: 'mistral-medium-3-2505', label: 'Mistral Medium 3' },
+                    { value: 'mistral-small-3-2505', label: 'Mistral Small 3' },
+                    { value: 'mistral-tiny-2505', label: 'Mistral Tiny 3' },
+                    { value: 'ministral-3b-2410', label: 'Ministral 3B' },
+                    { value: 'devstral-2406', label: 'Devstral 2' },
+                    { value: 'voxtral-transcribe-2-20250514', label: 'Voxtral Transcribe 2' },
+                    { value: 'mistral-large-latest', label: 'Mistral Large' },
+                    { value: 'mistral-medium-latest', label: 'Mistral Medium' },
+                    { value: 'mistral-small-latest', label: 'Mistral Small' },
+                    { value: 'mistral-tiny', label: 'Mistral Tiny' }
+                ],
+                baseUrl: 'https://api.mistral.ai/v1',
+                hasBaseUrl: false
+            },
+            cohere: {
+                name: 'Cohere',
+                models: [
+                    { value: 'command-r-plus-04-2025', label: 'Command R+ 04-2025' },
+                    { value: 'command-r', label: 'Command R' },
+                    { value: 'aya-vision-80b', label: 'Aya Vision (80亿参数)' },
+                    { value: 'aya-vision-32b', label: 'Aya Vision (320亿参数)' }
+                ],
+                baseUrl: 'https://api.cohere.ai/v1',
+                hasBaseUrl: false
+            },
+            together: {
+                name: 'Together AI',
+                models: [
+                    { value: 'meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8', label: 'Llama 4 Maverick' },
+                    { value: 'meta-llama/Llama-4-Scout-17B-16E-Instruct', label: 'Llama 4 Scout' },
+                    { value: 'meta-llama/Llama-3.1-70B-Instruct', label: 'Llama 3.1' },
+                    { value: 'mistralai/Mixtral-8x22B-Instruct-v0.1', label: 'Mixtral 8x22B' },
+                    { value: 'mistralai/Mixtral-8x7B-Instruct-v0.1', label: 'Mixtral 8x7B' },
+                    { value: 'Qwen/Qwen3.5-397B-A17B', label: 'Qwen 3.5 397B' },
+                    { value: 'Qwen/Qwen3.5-Plus', label: 'Qwen 3.5 Plus' }
+                ],
+                baseUrl: 'https://api.together.xyz/v1',
+                hasBaseUrl: false
+            },
+            azure: {
+                name: 'Azure OpenAI',
+                models: [
+                    { value: 'gpt-4.1', label: 'GPT-4.1' },
+                    { value: 'gpt-4o-audio-preview', label: 'GPT-4o 音频模型' },
+                    { value: 'gpt-4o-realtime-preview', label: 'GPT-4o realtime preview' },
+                    { value: 'gpt-5.2-chat-latest', label: 'gpt-5.2 chat latest' },
+                    { value: 'gpt-4o-transcribe', label: 'gpt-4o transcribe' },
+                    { value: 'gpt-4o-mini-transcribe', label: 'gpt-4o mini transcribe' }
+                ],
+                baseUrl: '',
+                hasBaseUrl: true,
+                isAzure: true
+            },
+            aws: {
+                name: 'Amazon Bedrock',
+                models: [
+                    { value: 'anthropic.claude-opus-4-6-20250514-v1:0', label: 'Claude Opus 4.6' },
+                    { value: 'anthropic.claude-sonnet-4-6-20250514-v1:0', label: 'Claude Sonnet 4.6' },
+                    { value: 'meta.llama3.1-70b-instruct-v1:0', label: 'Llama 3.1' },
+                    { value: 'qwen3.5-397b-a17b', label: 'Qwen3.5 397B' },
+                    { value: 'qwen3.5-plus', label: 'Qwen3.5 Plus' },
+                    { value: 'deepseek-v3', label: 'DeepSeek V3.1' }
+                ],
+                baseUrl: '',
+                hasBaseUrl: true,
+                isAWS: true
+            }
+        };
+
+        // 当前 API 配置
+        let currentApiConfig = {
+            provider: 'openai',
+            model: 'gpt-4o',
+            apiKey: '',
+            connected: false
+        };
+
+        // 初始化 API 模型列表
+        function updateApiModels() {
+            const provider = document.getElementById('apiProvider').value;
+            const modelSelect = document.getElementById('apiModel');
+            const baseUrlGroup = document.getElementById('baseUrlGroup');
+            
+            modelSelect.innerHTML = '';
+            
+            if (apiProviders[provider]) {
+                apiProviders[provider].models.forEach(model => {
+                    const option = document.createElement('option');
+                    option.value = model.value;
+                    option.textContent = model.label;
+                    modelSelect.appendChild(option);
+                });
+                
+                // 显示/隐藏 Base URL 输入
+                baseUrlGroup.style.display = apiProviders[provider].hasBaseUrl ? 'block' : 'none';
+                
+                currentApiConfig.provider = provider;
+                currentApiConfig.model = modelSelect.value;
+            }
+        }
+
+        // 加载保存的 API 配置
+        function loadApiConfig() {
+            const savedConfig = localStorage.getItem('apiConfig');
+            if (savedConfig) {
+                try {
+                    const config = JSON.parse(savedConfig);
+                    document.getElementById('apiProvider').value = config.provider || 'openai';
+                    document.getElementById('apiModel').value = config.model || 'gpt-4o';
+                    document.getElementById('baseUrl').value = config.baseUrl || '';
+                    currentApiConfig.apiKey = config.apiKey || '';
+                    
+                    if (config.connected) {
+                        const t = translationsA[localStorage.getItem('language') || 'en'];
+                        document.getElementById('apiStatus').textContent = (t ? t.statusConnected : 'Status: Connected to ') + 
+                            (apiProviders[config.provider]?.name || config.provider);
+                        document.getElementById('apiStatus').style.color = 'green';
+                    }
+                } catch (e) {
+                    console.error('Failed to load API config:', e);
+                }
+            }
+            updateApiModels();
+        }
+
+        // 保存 API 配置
+        function saveApiConfig() {
+            const config = {
+                provider: currentApiConfig.provider,
+                model: currentApiConfig.model,
+                baseUrl: document.getElementById('baseUrl').value,
+                apiKey: currentApiConfig.apiKey,
+                connected: currentApiConfig.connected
+            };
+            localStorage.setItem('apiConfig', JSON.stringify(config));
+        }
+
+        // API Provider 变更
+        document.getElementById('apiProvider').addEventListener('change', function() {
+            updateApiModels();
+        });
+
+        // API Model 变更
+        document.getElementById('apiModel').addEventListener('change', function() {
+            currentApiConfig.model = this.value;
+        });
+
+        // API Key 输入
+        document.getElementById('apiKey').addEventListener('input', function() {
+            currentApiConfig.apiKey = this.value;
+        });
+
+        // Base URL 输入
+        document.getElementById('baseUrl').addEventListener('input', function() {
+            currentApiConfig.baseUrl = this.value;
+        });
+
+        // Connect 按钮
+        document.getElementById('connectBtn').addEventListener('click', function() {
+            const apiKey = document.getElementById('apiKey').value.trim();
+            
+            if (!apiKey) {
+                alert('Please enter API key');
+                return;
+            }
+            
+            currentApiConfig.apiKey = apiKey;
+            currentApiConfig.connected = true;
+            
+            const providerName = apiProviders[currentApiConfig.provider]?.name || currentApiConfig.provider;
+            const t = translationsA[localStorage.getItem('language') || 'en'];
+            document.getElementById('apiStatus').textContent = (t ? t.statusConnected : 'Status: Connected') + ' ' + providerName;
+            document.getElementById('apiStatus').style.color = 'green';
+            
+            saveApiConfig();
+            
+            // 广播消息给其他面板
+            broadcastMessage({
+                type: 'apiConnected',
+                provider: currentApiConfig.provider,
+                model: currentApiConfig.model
+            });
+            
+            console.log('API Connected:', currentApiConfig);
+        });
+
+        // Disconnect 按钮
+        document.getElementById('disconnectBtn').addEventListener('click', function() {
+            currentApiConfig.connected = false;
+            currentApiConfig.apiKey = '';
+            
+            document.getElementById('apiKey').value = '';
+            const t = translationsA[localStorage.getItem('language') || 'en'];
+            document.getElementById('apiStatus').textContent = t ? t.statusNotConnected : 'Status: Not connected';
+            document.getElementById('apiStatus').style.color = '#666';
+            
+            localStorage.removeItem('apiConfig');
+            
+            // 广播消息给其他面板
+            broadcastMessage({
+                type: 'apiDisconnected'
+            });
+            
+            console.log('API Disconnected');
+        });
+
+        // 初始化
+        loadApiConfig();
+
+        // Language translations
+        const translationsA = {
+            en: {
+                controlPanel: 'Control Panel A',
+                model: 'Model',
+                selectModelFolder: 'Select Model Folder',
+                noFolderSelected: 'No folder selected',
+                browse: 'Browse',
+                current: 'Current:',
+                upload: 'Upload',
+                export: 'Export',
+                onlineAPI: 'Online API',
+                provider: 'Provider',
+                apiKey: 'API Key',
+                baseUrlOptional: 'Base URL (Optional)',
+                connect: 'Connect',
+                disconnect: 'Disconnect',
+                statusNotConnected: 'Status: Not connected',
+                statusConnected: 'Status: Connected',
+                fineTuning: 'Fine-Tuning',
+                epoch: 'Epoch:',
+                batchSize: 'Batch Size:',
+                learningRate: 'Learning Rate:',
+                start: 'Start',
+                pause: 'Pause',
+                safetyNeuron: 'Safety Neuron',
+                sparsity: 'Sparsity (%)',
+                p: 'P',
+                q: 'Q',
+                set: 'Set',
+                configuration: 'Configuration',
+                layers: 'Layers',
+                quadrants: 'Quadrants',
+                allLayers: 'All Layers',
+                layersRange: 'Layers',
+                allQuadrants: 'All Quadrants',
+                quadrant: 'Quadrant',
+                xBreak: 'X Break'
+            },
+            zh: {
+                controlPanel: '控制面板 A',
+                model: '模型',
+                selectModelFolder: '选择模型文件夹',
+                noFolderSelected: '未选择文件夹',
+                browse: '浏览',
+                current: '当前：',
+                upload: '上传',
+                export: '导出',
+                onlineAPI: '在线 API',
+                provider: '供应商',
+                apiKey: 'API 密钥',
+                baseUrlOptional: '基础 URL（可选）',
+                connect: '连接',
+                disconnect: '断开',
+                statusNotConnected: '状态：未连接',
+                statusConnected: '状态：已连接',
+                fineTuning: '微调',
+                epoch: '轮次：',
+                batchSize: '批量大小：',
+                learningRate: '学习率：',
+                start: '开始',
+                pause: '暂停',
+                safetyNeuron: '安全神经元',
+                sparsity: '稀疏度 (%)',
+                p: 'P',
+                q: 'Q',
+                set: '设置',
+                configuration: '配置',
+                layers: '层级',
+                quadrants: '象限',
+                allLayers: '所有层级',
+                layersRange: '层级',
+                allQuadrants: '所有象限',
+                quadrant: '象限',
+                xBreak: 'X 中断'
+            }
+        };
+
+        function updatePanelALanguage(lang) {
+            const t = translationsA[lang];
+            if (!t) return;
+
+            // Update elements with data-i18n attribute
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if (t[key]) el.textContent = t[key];
+            });
+
+            // Update elements with data-i18n-placeholder attribute
+            document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+                const key = el.getAttribute('data-i18n-placeholder');
+                if (t[key]) el.placeholder = t[key];
+            });
+
+            // Update model info - preserve current folder name
+            const modelInfo = document.getElementById('modelInfo');
+            if (modelInfo) {
+                const currentFolder = modelInfo.textContent.split(':')[1]?.trim() || '';
+                modelInfo.textContent = t.current + (currentFolder ? ': ' + currentFolder : '');
+            }
+        }
+
+        // Listen for language change
+        window.addEventListener('message', (event) => {
+            if (event.data && event.data.type === 'languageChange') {
+                updatePanelALanguage(event.data.lang);
+            }
+        });
+
+        const savedLangA = localStorage.getItem('language') || 'en';
+        // Ensure default is English
+        if (!localStorage.getItem('language')) {
+            localStorage.setItem('language', 'en');
+        }
+        setTimeout(() => updatePanelALanguage(savedLangA), 500);
+    </script>
+</body>
+</html>

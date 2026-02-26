@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Representation View C2 - Density Heatmap</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+
+        body {
+            padding: 16px;
+            background-color: #ffffff;
+            height: 100vh;
+            overflow: auto;
+        }
+
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .panel-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .controls {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .controls label {
+            font-size: 12px;
+            color: #666;
+        }
+
+        select {
+            padding: 4px 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+
+        .chart-container {
+            flex: 1;
+            min-height: 300px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+        }
+
+        #heatmap-svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        .legend {
+            display: flex;
+            justify-content: center;
+            gap: 24px;
+            margin-top: 12px;
+            font-size: 11px;
+        }
+
+        .legend-gradient {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .gradient-bar {
+            width: 120px;
+            height: 14px;
+            border-radius: 2px;
+            border: 1px solid #ddd;
+        }
+
+        .gradient-bar.benign {
+            background: linear-gradient(to right, #f0f7fb, #8AB1D2);
+        }
+
+        .gradient-bar.harmful {
+            background: linear-gradient(to right, #fdf8f7, #E58579);
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+    </style>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+</head>
+<body>
+    <div class="panel-header">
+        <div class="panel-title">Density Heatmap C2</div>
+        <div class="controls">
+            <label>Layer:</label>
+            <select id="layerSelect">
+                <option value="32">Layer 32</option>
+                <option value="31">Layer 31</option>
+                <option value="30">Layer 30</option>
+                <option value="29">Layer 29</option>
+                <option value="28">Layer 28</option>
+                <option value="27">Layer 27</option>
+                <option value="26">Layer 26</option>
+                <option value="25">Layer 25</option>
+                <option value="24">Layer 24</option>
+                <option value="23">Layer 23</option>
+                <option value="22">Layer 22</option>
+                <option value="21">Layer 21</option>
+                <option value="20">Layer 20</option>
+                <option value="19">Layer 19</option>
+                <option value="18">Layer 18</option>
+                <option value="17">Layer 17</option>
+                <option value="16">Layer 16</option>
+                <option value="15">Layer 15</option>
+                <option value="14">Layer 14</option>
+                <option value="13">Layer 13</option>
+                <option value="12">Layer 12</option>
+                <option value="11">Layer 11</option>
+                <option value="10">Layer 10</option>
+                <option value="9">Layer 9</option>
+                <option value="8">Layer 8</option>
+                <option value="7">Layer 7</option>
+                <option value="6">Layer 6</option>
+                <option value="5">Layer 5</option>
+                <option value="4">Layer 4</option>
+                <option value="3">Layer 3</option>
+                <option value="2">Layer 2</option>
+                <option value="1">Layer 1</option>
+                <option value="0">Layer 0</option>
+            </select>
+            <label>Type:</label>
+            <select id="dataType">
+                <option value="all">All</option>
+                <option value="benign">Benign Only</option>
+                <option value="harmful">Harmful Only</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="chart-container" id="heatmap-container">
+        <svg id="heatmap-svg"></svg>
+        <div class="loading" id="loading">Loading data...</div>
+    </div>
+
+    <div class="legend">
+        <div class="legend-gradient">
+            <span>Low</span>
+            <div class="gradient-bar benign"></div>
+            <span>High</span>
+            <span style="color: #8AB1D2;">(Benign)</span>
+        </div>
+        <div class="legend-gradient">
+            <span>Low</span>
+            <div class="gradient-bar harmful"></div>
+            <span>High</span>
+            <span style="color: #E58579;">(Harmful)</span>
+        </div>
+    </div>
+
+    <script>
+        let currentLayer = 32;
+        let currentDataType = 'all';
+        let currentData = null;
+
+        // 颜色比例尺 - 自定义颜色
+        // Benign: #8AB1D2 (蓝色), Harmful: #E58579 (红色)
+        const benignColorScale = d3.scaleLinear()
+            .domain([0, 0.005, 0.05])
+            .range(['#f0f7fb', '#6a9bc4', '#8AB1D2']);
+        
+        const harmfulColorScale = d3.scaleLinear()
+            .domain([0.01, 0.05, 0.1])
+            .range(['#fdf8f7', '#d47a70', '#E58579']);
+
+        // 加载数据
+        async function loadData(layer) {
+            const filename = `../outputs/representation/representation_layer_${layer}_standard.json`;
+            try {
+                const response = await fetch(filename);
+                if (!response.ok) throw new Error(`Failed to load ${filename}`);
+                return await response.json();
+            } catch (error) {
+                console.error('Error loading data:', error);
+                return null;
+            }
+        }
+
+        // 计算2D直方图密度
+        function computeDensity(points, xDomain, yDomain, bins = 40) {
+            const xScale = d3.scaleLinear().domain(xDomain).range([0, bins]);
+            const yScale = d3.scaleLinear().domain(yDomain).range([0, bins]);
+
+            const grid = Array(bins).fill(null).map(() => Array(bins).fill(0));
+            
+            points.forEach(p => {
+                const xi = Math.floor(xScale(p.x));
+                const yi = Math.floor(yScale(p.y));
+                if (xi >= 0 && xi < bins && yi >= 0 && yi < bins) {
+                    grid[yi][xi]++;
+                }
+            });
+
+            // 归一化
+            const maxVal = d3.max(grid.flat()) || 1;
+            return grid.map((row, y) => row.map((val, x) => ({
+                x: x / bins * (xDomain[1] - xDomain[0]) + xDomain[0],
+                y: y / bins * (yDomain[1] - yDomain[0]) + yDomain[0],
+                value: val / maxVal
+            }))).flat();
+        }
+
+        // 渲染热力图
+        function renderHeatmap(data) {
+            if (!data || !data.points || data.points.length === 0) {
+                document.getElementById('loading').textContent = 'No data available';
+                return;
+            }
+
+            document.getElementById('loading').style.display = 'none';
+            currentData = data;
+
+            const container = document.getElementById('heatmap-container');
+            const width = container.clientWidth - 60;
+            const height = container.clientHeight - 60;
+            
+            const margin = { top: 30, right: 30, bottom: 50, left: 50 };
+            const innerWidth = width - margin.left - margin.right;
+            const innerHeight = height - margin.top - margin.bottom;
+
+            const svg = d3.select('#heatmap-svg')
+                .attr('width', width)
+                .attr('height', height);
+
+            svg.selectAll('*').remove();
+
+            const g = svg.append('g')
+                .attr('transform', `translate(${margin.left},${margin.top})`);
+
+            // 分离数据 - 根据筛选类型
+            let benignPoints, harmfulPoints;
+            
+            if (currentDataType === 'benign') {
+                benignPoints = data.points.filter(p => !p.jailbroken);
+                harmfulPoints = [];
+            } else if (currentDataType === 'harmful') {
+                benignPoints = [];
+                harmfulPoints = data.points.filter(p => p.jailbroken);
+            } else {
+                benignPoints = data.points.filter(p => !p.jailbroken);
+                harmfulPoints = data.points.filter(p => p.jailbroken);
+            }
+
+            // 计算数据范围
+            const xExtent = d3.extent(data.points, d => d.x);
+            const yExtent = d3.extent(data.points, d => d.y);
+            const xPadding = (xExtent[1] - xExtent[0]) * 0.05;
+            const yPadding = (yExtent[1] - yExtent[0]) * 0.05;
+            const xDomain = [xExtent[0] - xPadding, xExtent[1] + xPadding];
+            const yDomain = [yExtent[0] - yPadding, yExtent[1] + yPadding];
+
+            // 比例尺
+            const xScale = d3.scaleLinear().domain(xDomain).range([0, innerWidth]);
+            const yScale = d3.scaleLinear().domain(yDomain).range([innerHeight, 0]);
+
+            // 计算密度
+            const bins = 50;
+            const benignDensity = computeDensity(benignPoints, xDomain, yDomain, bins);
+            const harmfulDensity = computeDensity(harmfulPoints, xDomain, yDomain, bins);
+
+            // 绘制 Benign 热力图
+            g.append('g')
+                .selectAll('rect')
+                .data(benignDensity)
+                .enter()
+                .append('rect')
+                .attr('x', d => xScale(d.x))
+                .attr('y', d => yScale(d.y))
+                .attr('width', innerWidth / bins + 1)
+                .attr('height', innerHeight / bins + 1)
+                .attr('fill', d => d.value > 0 ? benignColorScale(d.value) : 'transparent')
+                .attr('opacity', 0.8)
+                .style('cursor', 'pointer')
+                .on('mouseover', function(event, d) {
+                    d3.select(this).attr('stroke', '#1e40af').attr('stroke-width', 2);
+                })
+                .on('mouseout', function() {
+                    d3.select(this).attr('stroke', 'none');
+                });
+
+            // 绘制 Harmful 热力图
+            g.append('g')
+                .selectAll('rect')
+                .data(harmfulDensity)
+                .enter()
+                .append('rect')
+                .attr('x', d => xScale(d.x))
+                .attr('y', d => yScale(d.y))
+                .attr('width', innerWidth / bins + 1)
+                .attr('height', innerHeight / bins + 1)
+                .attr('fill', d => d.value > 0 ? harmfulColorScale(d.value) : 'transparent')
+                .attr('opacity', 0.9)
+                .style('cursor', 'pointer')
+                .on('mouseover', function(event, d) {
+                    d3.select(this).attr('stroke', '#ea580c').attr('stroke-width', 2);
+                })
+                .on('mouseout', function() {
+                    d3.select(this).attr('stroke', 'none');
+                });
+
+            // X轴
+            g.append('g')
+                .attr('transform', `translate(0, ${innerHeight})`)
+                .call(d3.axisBottom(xScale).ticks(8))
+                .selectAll('text')
+                .style('font-size', '10px')
+                .style('fill', '#666');
+
+            // Y轴
+            g.append('g')
+                .call(d3.axisLeft(yScale).ticks(8))
+                .selectAll('text')
+                .style('font-size', '10px')
+                .style('fill', '#666');
+
+            // 轴标签
+            svg.append('text')
+                .attr('x', margin.left + innerWidth / 2)
+                .attr('y', height - 10)
+                .attr('text-anchor', 'middle')
+                .style('font-size', '11px')
+                .style('fill', '#666')
+                .text('Dimension 1');
+
+            svg.append('text')
+                .attr('transform', 'rotate(-90)')
+                .attr('x', -(margin.top + innerHeight / 2))
+                .attr('y', 15)
+                .attr('text-anchor', 'middle')
+                .style('font-size', '11px')
+                .style('fill', '#666')
+                .text('Dimension 2');
+        }
+
+        // 初始化
+        async function init() {
+            const data = await loadData(currentLayer);
+            if (data) {
+                renderHeatmap(data);
+            } else {
+                document.getElementById('loading').textContent = 'Failed to load data';
+            }
+        }
+
+        // 层选择
+        document.getElementById('layerSelect').addEventListener('change', async function() {
+            currentLayer = parseInt(this.value);
+            document.getElementById('loading').style.display = 'block';
+            const data = await loadData(currentLayer);
+            if (data) renderHeatmap(data);
+        });
+
+        // 类型选择
+        document.getElementById('dataType').addEventListener('change', function() {
+            currentDataType = this.value;
+            if (currentData) renderHeatmap(currentData);
+        });
+
+        // 窗口大小调整
+        window.addEventListener('resize', function() {
+            if (currentData) renderHeatmap(currentData);
+        });
+
+        // Language translations
+        const translationsC2 = {
+            en: {
+                densityHeatmap: 'Density Heatmap C2',
+                layer: 'Layer',
+                loadingData: 'Loading data...',
+                noData: 'No data available',
+                failedToLoad: 'Failed to load data'
+            },
+            zh: {
+                densityHeatmap: '密度热力图 C2',
+                layer: '层',
+                loadingData: '正在加载数据...',
+                noData: '暂无数据',
+                failedToLoad: '数据加载失败'
+            }
+        };
+
+        function updatePanelC2Language(lang) {
+            const t = translationsC2[lang];
+            if (!t) return;
+
+            // Update panel header
+            document.querySelector('.panel-title').textContent = t.densityHeatmap;
+
+            // Update loading text
+            const loadingEl = document.getElementById('loading');
+            if (loadingEl) {
+                if (loadingEl.textContent.toLowerCase().includes('loading')) {
+                    loadingEl.textContent = t.loadingData;
+                } else if (loadingEl.textContent.toLowerCase().includes('no data')) {
+                    loadingEl.textContent = t.noData;
+                } else if (loadingEl.textContent.toLowerCase().includes('failed')) {
+                    loadingEl.textContent = t.failedToLoad;
+                }
+            }
+        }
+
+        // Listen for language change
+        window.addEventListener('message', (event) => {
+            if (event.data && event.data.type === 'languageChange') {
+                updatePanelC2Language(event.data.lang);
+            }
+        });
+
+        const savedLangC2 = localStorage.getItem('language') || 'en';
+        // Ensure default is English
+        if (!localStorage.getItem('language')) {
+            localStorage.setItem('language', 'en');
+        }
+        setTimeout(() => updatePanelC2Language(savedLangC2), 500);
+
+        init();
+    </script>
+</body>
+</html>
+
