@@ -21,8 +21,8 @@
             max-width: 1600px;
             margin: 0 auto;
             display: grid;
-            grid-template-columns: 1fr 2fr 2fr;
-            grid-template-rows: auto auto auto auto;
+            grid-template-columns: 1fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr;
+            grid-template-rows: auto auto auto auto auto auto auto;
             gap: 16px;
         }
 
@@ -150,44 +150,65 @@
 
         /* Control Panel (A) */
         .control-panel {
-            grid-row: 2 / 3;
-            grid-column: 1 / 2;
+            grid-row: 2 / 4;
+            grid-column: 1 / 3;
             min-height: 250px;
         }
 
         /* Metric View (B) */
         .metric-view {
-            grid-row: 3 / 4;
-            grid-column: 1 / 2;
+            grid-row: 4 / 5;
+            grid-column: 1 / 3;
             min-height: 250px;
         }
 
         /* Representation View (C) */
         .representation-view {
-            grid-row: 4 / 5;
-            grid-column: 1 / 2;
+            grid-row: 5 / 6;
+            grid-column: 1 / 3;
             min-height: 300px;
         }
 
         /* Layer View (D) */
         .layer-view {
             grid-row: 2 / 4;
-            grid-column: 2 / 3;
+            grid-column: 3 / 6;
             min-height: 500px;
         }
 
         /* Neuron View (E) */
         .neuron-view {
             grid-row: 2 / 4;
-            grid-column: 3 / 4;
+            grid-column: 6 / 9;
             min-height: 500px;
         }
 
         /* Instance View (F) */
         .instance-view {
-            grid-row: 4 / 5;
-            grid-column: 2 / 4;
+            grid-row: 5 / 6;
+            grid-column: 3 / 9;
             min-height: 300px;
+        }
+
+        /* Heatmap View (G) */
+        .heatmap-view {
+            grid-row: 4 / 5;
+            grid-column: 3 / 5;
+            min-height: 400px;
+        }
+
+        /* Sankey View (H) */
+        .sankey-view {
+            grid-row: 4 / 5;
+            grid-column: 5 / 7;
+            min-height: 400px;
+        }
+
+        /* Violin View (I) */
+        .violin-view {
+            grid-row: 4 / 5;
+            grid-column: 7 / 9;
+            min-height: 400px;
         }
 
         /* Zoom Button */
@@ -296,10 +317,28 @@
             <iframe src="vis/panel_E_neuron.html" title="Neuron View E" data-i18n-title="neuronView"></iframe>
         </div>
 
-        <!-- Instance View (F) -->
+        <!-- Instance View (K) -->
         <div class="panel instance-view">
             <button class="zoom-btn" title="Zoom">⤢</button>
-            <iframe src="vis/panel_F_instance.html" title="Instance View F" data-i18n-title="instanceView"></iframe>
+            <iframe src="vis/panel_K_instance.html" title="Instance View F" data-i18n-title="instanceView"></iframe>
+        </div>
+
+        <!-- Heatmap View (F) -->
+        <div class="panel heatmap-view">
+            <button class="zoom-btn" title="Zoom">⤢</button>
+            <iframe src="vis/panel_F_heatmap.html" title="Heatmap View F" data-i18n-title="heatmapView"></iframe>
+        </div>
+
+        <!-- Sankey View (G) -->
+        <div class="panel sankey-view">
+            <button class="zoom-btn" title="Zoom">⤢</button>
+            <iframe src="vis/panel_G_sankey.html" title="Sankey View G" data-i18n-title="sankeyView"></iframe>
+        </div>
+
+        <!-- Violin View (H) -->
+        <div class="panel violin-view">
+            <button class="zoom-btn" title="Zoom">⤢</button>
+            <iframe src="vis/panel_H_violin.html" title="Violin View H" data-i18n-title="violinView"></iframe>
         </div>
 
     <script>
@@ -362,8 +401,10 @@
                 representationView: 'Representation View C',
                 layerView: 'Layer View D',
                 neuronView: 'Neuron View E',
-                instanceView: 'Instance View F',
-                layerPerformance: 'Layer Performance G'
+                instanceView: 'Instance View K',
+                heatmapView: 'Heatmap View F',
+                sankeyView: 'Sankey View G',
+                violinView: 'Violin View H'
             },
             zh: {
                 settings: '设置',
@@ -382,8 +423,10 @@
                 representationView: '表征视图 C',
                 layerView: '层级视图 D',
                 neuronView: '神经元视图 E',
-                instanceView: '实例视图 F',
-                layerPerformance: '层级性能 G'
+                instanceView: '实例视图 K',
+                heatmapView: '热力图视图 F',
+                sankeyView: '桑基图视图 G',
+                violinView: '小提琴图视图 H'
             }
         };
 

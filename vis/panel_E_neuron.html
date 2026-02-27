@@ -312,6 +312,7 @@
         let quadrantData = null;
         let alignmentData = null;
         let gradientData = null;
+        let gradientVisData = null;
         let dedicatedData = null;
         let combinedNeurons = {};
         let filteredNeurons = [];
@@ -320,6 +321,7 @@
         let simulation = null;
         let node = null;
         let linkSelection = null; // 存放连线 selection，方便拖拽时更新
+        let currentLinks = []; // 当前层的连线数据，包含相关强度
         let centerX = 0;
         let centerY = 0;
         let innerRingRadius = 0;
@@ -348,15 +350,17 @@
 
         // 加载所有数据
         async function loadAllData() {
-            const [quadrantResp, alignmentResp, gradientResp, dedicatedResp] = await Promise.all([
+            const [quadrantResp, alignmentResp, gradientResp, dedicatedResp, gradientVisResp] = await Promise.all([
                 // 数据位于 visualization/outputs/ 目录
                 fetch('../outputs/quadrant_classification/quadrant_classification.json'),
                 fetch('../outputs/parameter_alignment/parameter_alignment.json'),
                 fetch('../outputs/gradient_dependency/gradient_dependency.json'),
-                fetch('../outputs/dedicated_safety_neurons.json')
+                fetch('../outputs/dedicated_safety_neurons.json'),
+                // 可视化用的梯度强度数据（包含每条边的相关程度）
+                fetch('../outputs/gradient_dependency/gradient_dependency_visualization.json')
             ]);
 
-            if (!quadrantResp.ok || !alignmentResp.ok || !gradientResp.ok || !dedicatedResp.ok) {
+            if (!quadrantResp.ok || !alignmentResp.ok || !gradientResp.ok || !dedicatedResp.ok || !gradientVisResp.ok) {
                 throw new Error("Failed to load some data");
             }
 
@@ -364,7 +368,8 @@
                 quadrant: await quadrantResp.json(),
                 alignment: await alignmentResp.json(),
                 gradient: await gradientResp.json(),
-                dedicated: await dedicatedResp.json()
+                dedicated: await dedicatedResp.json(),
+                gradientVis: await gradientVisResp.json()
             };
         }
 
@@ -455,16 +460,40 @@
             const topUpstreamIds = prevLayerSafety.map(([id]) => id); // 形如 "30_1384"
 
             const topSet = new Set(topUpstreamIds);
-            // 2. 在 gradient_dependency 中，只保留「上一层 top 18 专用安全神经元 → 本层神经元」的连边
+            // 2. 在 gradient_dependency 中，只保留「上一层 top 18 专用安全神经元 → 本层神经元」的连边，
+            //    并从 gradient_dependency_visualization.json 中取出对应的梯度强度，作为“相关程度”
             neurons.forEach(neuron => {
                 if (!neuron.upstream) return;
+
+                // 当前目标神经元在 gradient_dependency_visualization.json 中的 key
+                let gradVisEntry = null;
+                if (gradientVisData) {
+                    const gradKey = `layer_${neuron.layer}_neuron_${neuron.index}`;
+                    gradVisEntry = gradientVisData[gradKey] || null;
+                }
+
                 neuron.upstream.forEach(upstreamId => {
-                    const [upLayerStr] = upstreamId.split('_');
+                    const [upLayerStr, upIdxStr] = upstreamId.split('_');
                     const upLayer = parseInt(upLayerStr);
+                    const upIdx = parseInt(upIdxStr);
+
                     if (upLayer === prevLayer && topSet.has(upstreamId)) {
+                        let strength = null;
+
+                        // 从 gradient_dependency_visualization.json 里查找对应的梯度强度
+                        if (gradVisEntry && Array.isArray(gradVisEntry.upstream_neurons) && Array.isArray(gradVisEntry.gradient_strengths)) {
+                            const idx = gradVisEntry.upstream_neurons.findIndex(
+                                pair => Array.isArray(pair) && pair[0] === upLayer && pair[1] === upIdx
+                            );
+                            if (idx >= 0 && idx < gradVisEntry.gradient_strengths.length) {
+                                strength = gradVisEntry.gradient_strengths[idx];
+                            }
+                        }
+
                         links.push({
                             source: upstreamId,   // 上一层重要神经元
-                            target: neuron.id     // 本层神经元
+                            target: neuron.id,    // 本层神经元
+                            strength: strength    // 相关程度（可为空）
                         });
                     }
                 });
@@ -596,14 +625,17 @@
             // 方便在 tick 中通过 id 查找坐标
             const nodeById = new Map(allNodes.map(d => [d.id, d]));
 
-            // 绘制链接
+            // 绘制链接（初始为中性样式，真正的强度编码在点击高亮时进行）
             linkSelection = container.append('g')
                 .selectAll('line')
                 .data(links)
                 .join('line')
                 .attr('stroke', '#9ca3af')
-                .attr('stroke-opacity', 0.35)
+                .attr('stroke-opacity', 0.25)
                 .attr('stroke-width', 1);
+
+            // 保存当前连线数据，供点击高亮时根据相关程度调整粗细
+            currentLinks = links;
 
             // 绘制节点组（包含外圈真实神经元 + 内圈灰色小球）
             node = container.append('g')
@@ -765,22 +797,61 @@
             // 高亮与当前选中节点相关的连线：
             // - 若点击的是内侧灰色小球（上一层神经元）：高亮它发出的所有连线（source === d.id）
             // - 若点击的是外圈彩色小球（本层神经元）：高亮所有指向它的连线（target === d.id）
+            // 同时根据梯度强度（相关程度）调整线条粗细 + 颜色
             if (linkSelection) {
+                // 先统计与当前节点相关的所有连线的强度范围
+                let relatedLinks = [];
+                if (currentLinks && Array.isArray(currentLinks)) {
+                    relatedLinks = currentLinks.filter(l =>
+                        d.is_upstream ? l.source === d.id : l.target === d.id
+                    );
+                }
+
+                const strengths = relatedLinks
+                    .map(l => l.strength)
+                    .filter(s => typeof s === 'number' && isFinite(s));
+
+                const hasStrength = strengths.length > 0;
+                const maxStrength = hasStrength ? Math.max(...strengths) : 1;
+                const minStrength = hasStrength ? Math.min(...strengths) : 0;
+                const strengthRange = Math.max(maxStrength - minStrength, 1e-6);
+
                 linkSelection
                     .attr('stroke-opacity', l => {
-                        if (d.is_upstream) {
-                            return l.source === d.id ? 0.9 : 0.08;
-                        } else {
-                            return l.target === d.id ? 0.9 : 0.08;
+                        const isRelated = d.is_upstream ? l.source === d.id : l.target === d.id;
+                        return isRelated ? 1.0 : 0.05;
+                    })
+                    .attr('stroke', l => {
+                        const isRelated = d.is_upstream ? l.source === d.id : l.target === d.id;
+                        if (!isRelated || !hasStrength || typeof l.strength !== 'number' || !isFinite(l.strength)) {
+                            // 未相关或无强度信息：统一浅灰
+                            return '#d4d4d8'; // 浅灰
                         }
+
+                        // 将强度归一化到 [0, 1]
+                        const norm = (l.strength - minStrength) / strengthRange;
+
+                        // 使用单一灰度：整体偏浅，弱为很浅灰，强为中灰
+                        const minGray = 240; // 最浅（接近白）
+                        const maxGray = 140; // 最深（中等灰）
+                        const g = Math.round(minGray + (maxGray - minGray) * norm);
+                        return `rgb(${g},${g},${g})`;
                     })
                     .attr('stroke-width', l => {
-                        if (d.is_upstream) {
-                            return l.source === d.id ? 1.5 : 0.8;
-                        } else {
-                            return l.target === d.id ? 1.5 : 0.8;
-                    }
-                });
+                        const isRelated = d.is_upstream ? l.source === d.id : l.target === d.id;
+                        if (!isRelated) {
+                            return 0.6;
+                        }
+
+                        if (!hasStrength || typeof l.strength !== 'number' || !isFinite(l.strength)) {
+                            // 没有强度信息时使用较温和的高亮粗细
+                            return 2.0;
+                        }
+
+                        // 将强度映射到较窄的线宽范围，例如 [1.6, 2.8]，减弱粗细对比
+                        const norm = (l.strength - minStrength) / strengthRange;
+                        return 1.6 + norm * 1.2;
+                    });
             }
         }
 
@@ -844,6 +915,7 @@
                 alignmentData = data.alignment;
                 gradientData = data.gradient;
                 dedicatedData = data.dedicated;
+                gradientVisData = data.gradientVis;
 
                 // 组合所有数据
                 combinedNeurons = combineAllData(data);

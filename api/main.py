@@ -23,8 +23,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Data directory
-DATA_DIR = Path(__file__).parent / "outputs"
+# Data directory - outputs folder at project root
+DATA_DIR = Path(__file__).parent.parent / "outputs"
 
 
 # ============ Data Models ============
@@ -446,6 +446,177 @@ async def get_file(filename: str):
             return FileResponse(path)
     
     raise HTTPException(status_code=404, detail="File not found")
+
+
+# ---------- Layer Similarity (Heatmap) ----------
+
+@app.get("/api/layer_similarity")
+async def get_layer_similarity():
+    """
+    Get cross-layer semantic similarity matrix from semantic_evolution.json
+    """
+    import numpy as np
+    
+    file_path = DATA_DIR / "layer_evolution" / "semantic_evolution.json"
+    if not file_path.exists():
+        return {"error": "File not found", "matrix": [], "layer_labels": []}
+    
+    with open(file_path, 'r') as f:
+        data = json.load(f)
+    
+    # Get layers (sorted)
+    layers = sorted(data.keys(), key=lambda x: int(x.split('_')[1]))
+    
+    # Build similarity matrix based on mean_projection_safe vs mean_projection_toxic
+    matrix = []
+    layer_labels = []
+    
+    for layer_i in layers:
+        row = []
+        for layer_j in layers:
+            # Calculate similarity based on probe separability
+            safe_i = data[layer_i].get('safe', {}).get('mean', 0)
+            toxic_i = data[layer_i].get('toxic', {}).get('mean', 0)
+            safe_j = data[layer_j].get('safe', {}).get('mean', 0)
+            toxic_j = data[layer_j].get('toxic', {}).get('mean', 0)
+            
+            # Similarity: how close the safe/toxic separation patterns are
+            diff_i = abs(toxic_i - safe_i)
+            diff_j = abs(toxic_j - safe_j)
+            
+            if diff_i == 0 and diff_j == 0:
+                similarity = 0
+            else:
+                # Cosine-like similarity
+                similarity = min(100, (diff_i * diff_j) ** 0.5 * 50)
+            
+            row.append(round(similarity, 2))
+        
+        matrix.append(row)
+        layer_labels.append(f"Layer {data[layer_i]['layer']}")
+    
+    return {"matrix": matrix, "layer_labels": layer_labels}
+
+
+# ---------- Attack Paths (Sankey) ----------
+
+@app.get("/api/attack_paths")
+async def get_attack_paths():
+    """
+    Get attack paths from quadrant_classification.json for Sankey diagram
+    """
+    file_path = DATA_DIR / "quadrant_classification" / "quadrant_classification.json"
+    if not file_path.exists():
+        return {"error": "File not found", "nodes": [], "links": []}
+    
+    with open(file_path, 'r') as f:
+        data = json.load(f)
+    
+    # Group neurons by quadrant and layer
+    quadrant_neurons = {"S+A+": [], "S-A-": [], "S+A-": [], "S-A+": []}
+    
+    for key, value in data.items():
+        quadrant = value.get('quadrant', 'other')
+        if quadrant in quadrant_neurons:
+            quadrant_neurons[quadrant].append(value)
+    
+    # Build nodes and links for Sankey
+    nodes = []
+    links = []
+    
+    # Attack method nodes
+    attack_methods = ["AutoDan", "TAP", "GPT-Fuzzer", "GCG"]
+    attack_idx = {}
+    for i, method in enumerate(attack_methods):
+        attack_idx[method] = len(nodes)
+        nodes.append({"id": f"attack_{i}", "label": method, "type": "attack"})
+    
+    # Quadrant nodes (middle layer)
+    quadrant_idx = {}
+    for i, quadrant in enumerate(["S+A+", "S-A-", "S+A-", "S-A+"]):
+        quadrant_idx[quadrant] = len(nodes)
+        nodes.append({"id": f"quad_{i}", "label": quadrant, "type": "quadrant"})
+    
+    # Output nodes
+    output_idx = {}
+    for i, label in enumerate(["Jailbroken", "Benign"]):
+        output_idx[label] = len(nodes)
+        nodes.append({"id": f"output_{i}", "label": label, "type": "output"})
+    
+    # Create links: attack -> quadrant -> output
+    for i, method in enumerate(attack_methods):
+        for j, quadrant in enumerate(["S+A+", "S-A-", "S+A-", "S-A+"]):
+            # Calculate weight based on neuron count in quadrant
+            weight = len(quadrant_neurons[quadrant])
+            if weight > 0:
+                links.append({
+                    "source": f"attack_{i}",
+                    "target": f"quad_{j}",
+                    "value": min(weight // 10 + 10, 40)
+                })
+    
+    for j, quadrant in enumerate(["S+A+", "S-A-", "S+A-", "S-A+"]):
+        # S+A+ and S-A- lead to jailbroken, others to benign
+        target_jail = 0 if quadrant in ["S+A+", "S-A-"] else 1
+        target_benign = 1 if quadrant in ["S+A+", "S-A-"] else 0
+        
+        links.append({
+            "source": f"quad_{j}",
+            "target": f"output_{target_jail}",
+            "value": 30
+        })
+        links.append({
+            "source": f"quad_{j}",
+            "target": f"output_{target_benign}",
+            "value": 10
+        })
+    
+    return {"nodes": nodes, "links": links}
+
+
+# ---------- Neuron Activations (Violin) ----------
+
+@app.get("/api/neuron_activations")
+async def get_neuron_activations(successful: bool = True, failed: bool = True):
+    """
+    Get neuron activation data from quadrant_classification.json for violin plot
+    """
+    file_path = DATA_DIR / "quadrant_classification" / "quadrant_classification.json"
+    if not file_path.exists():
+        return {"error": "File not found"}
+    
+    with open(file_path, 'r') as f:
+        data = json.load(f)
+    
+    # Group by quadrant
+    result = {"S+A+": {"successful": [], "failed": []}, 
+              "S-A-": {"successful": [], "failed": []},
+              "S+A-": {"successful": [], "failed": []}, 
+              "S-A+": {"successful": [], "failed": []}}
+    
+    for key, value in data.items():
+        quadrant = value.get('quadrant', 'other')
+        if quadrant not in result:
+            continue
+        
+        # Get activation values (use activation_diff as the metric)
+        activation_diff = value.get('activation_diff', 0)
+        
+        # Determine if successful or failed based on quadrant
+        # S+A+ and S-A- are typically more successful
+        if quadrant in ["S+A+", "S-A-"]:
+            if successful:
+                result[quadrant]["successful"].append(activation_diff)
+        else:
+            if failed:
+                result[quadrant]["failed"].append(activation_diff)
+    
+    # Limit data points for performance
+    for quadrant in result:
+        for status in ["successful", "failed"]:
+            result[quadrant][status] = result[quadrant][status][:200]
+    
+    return result
 
 
 if __name__ == "__main__":
