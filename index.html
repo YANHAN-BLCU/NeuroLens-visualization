@@ -392,6 +392,9 @@
                 close: 'Close',
                 light: 'Light',
                 dark: 'Dark (Coming Soon)',
+                fontSmall: 'Small',
+                fontMedium: 'Medium',
+                fontLarge: 'Large',
                 help: 'Help',
                 refreshData: 'Refresh Data',
                 helpContent: '<b>NeuroLens</b> is a neural network safety analysis visualization tool.<br><br>Click the ⤢ button in the top-right corner of a panel to zoom in.<br><br>Use the top buttons to refresh, configure settings, and get help.',
@@ -414,6 +417,9 @@
                 close: '关闭',
                 light: '浅色',
                 dark: '深色 (开发中)',
+                fontSmall: '小号',
+                fontMedium: '中号',
+                fontLarge: '大号',
                 help: '帮助',
                 refreshData: '刷新数据',
                 helpContent: '<b>NeuroLens</b> 是一个神经网络安全分析可视化工具。<br><br>点击面板右上角 ⤢ 按钮可放大查看。<br><br>使用顶部按钮进行刷新、设置和获取帮助。',
@@ -434,7 +440,13 @@
         function applyLanguage(lang) {
             currentLanguage = lang;
             localStorage.setItem('language', lang);
-            document.getElementById('languageSelect').value = lang;
+
+            // 语言下拉可能在 DOM 尚未就绪时还不存在，这里做空值保护
+            const languageSelectEl = document.getElementById('languageSelect');
+            if (languageSelectEl) {
+                languageSelectEl.value = lang;
+            }
+
             updateLanguage(lang);
             // Dispatch event for iframes to listen
             window.dispatchEvent(new CustomEvent('languageChange', { detail: lang }));
@@ -480,27 +492,7 @@
             if (helpLabel) helpLabel.innerHTML = t.helpContent;
         }
 
-        // Load saved font size
-        const savedFontSize = localStorage.getItem('fontSize');
-        if (savedFontSize) {
-            document.body.style.fontSize = savedFontSize + 'px';
-            document.getElementById('fontSizeSelect').value = savedFontSize;
-        }
-
-        // Load saved language - default to English
-        let savedLanguage = localStorage.getItem('language');
-        // Force default to English on first load
-        if (!savedLanguage || savedLanguage === 'zh') {
-            savedLanguage = 'en';
-            localStorage.setItem('language', 'en');
-        }
-        currentLanguage = savedLanguage;
-        document.getElementById('languageSelect').value = savedLanguage;
-        // Always update language to ensure UI is in sync
-        updateLanguage(savedLanguage);
-
-        // Set up modal event listeners after DOM is ready
-        // Initialize modals when DOM is ready
+        // Initialize UI when DOM is ready
         document.addEventListener('DOMContentLoaded', function() {
             const settingsModal = document.getElementById('settingsModal');
             const helpModal = document.getElementById('helpModal');
@@ -517,6 +509,33 @@
                     helpModal.classList.remove('active');
                 }
             });
+
+            // Load saved font size
+            const savedFontSize = localStorage.getItem('fontSize');
+            if (savedFontSize) {
+                document.body.style.fontSize = savedFontSize + 'px';
+                const fontSizeSelectEl = document.getElementById('fontSizeSelect');
+                if (fontSizeSelectEl) {
+                    fontSizeSelectEl.value = savedFontSize;
+                }
+            }
+
+            // Load saved language - default to English
+            let savedLanguage = localStorage.getItem('language');
+            // Force default to English on first load
+            if (!savedLanguage || savedLanguage === 'zh') {
+                savedLanguage = 'en';
+                localStorage.setItem('language', 'en');
+            }
+            currentLanguage = savedLanguage;
+
+            // 语言下拉控件在此时已经渲染完成，安全设置
+            const languageSelectEl = document.getElementById('languageSelect');
+            if (languageSelectEl) {
+                languageSelectEl.value = savedLanguage;
+            }
+            // Always update language to ensure UI is in sync
+            updateLanguage(savedLanguage);
         });
     </script>
 
@@ -527,9 +546,9 @@
             <div class="modal-row">
                 <span class="modal-label" data-i18n="fontSize">Font Size</span>
                 <select class="modal-select" id="fontSizeSelect" onchange="applyFontSize(this.value)">
-                    <option value="12">Small</option>
-                    <option value="14" selected>Medium</option>
-                    <option value="16">Large</option>
+                    <option value="12" data-i18n="fontSmall">Small</option>
+                    <option value="14" selected data-i18n="fontMedium">Medium</option>
+                    <option value="16" data-i18n="fontLarge">Large</option>
                 </select>
             </div>
             <div class="modal-row">

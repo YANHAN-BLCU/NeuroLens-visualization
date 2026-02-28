@@ -719,9 +719,10 @@
         function showTooltip(event, d) {
             const lang = localStorage.getItem('language') || 'en';
             const t = translationsE[lang] || translationsE.en;
+            const neuronLabel = t.neuronLabel || 'Neuron';
             
             tooltip.innerHTML = `
-                <div class="tooltip-title">Neuron ${d.key}</div>
+                <div class="tooltip-title">${neuronLabel} ${d.key}</div>
                 <div class="tooltip-row">
                     <span class="tooltip-label">${t.layer}:</span>
                     <span>${d.layer}</span>
@@ -978,7 +979,8 @@
                 activationProjection: 'Activation projection',
                 activationDiff: 'Activation difference',
                 dedicatedSafety: 'Dedicated safety',
-                upstreamConnections: 'Upstream connections'
+                upstreamConnections: 'Upstream connections',
+                neuronLabel: 'Neuron'
             },
             zh: {
                 neuronView: '神经元视图 E',
@@ -996,7 +998,8 @@
                 activationProjection: '激活投影',
                 activationDiff: '激活差异',
                 dedicatedSafety: '专用安全',
-                upstreamConnections: '上游连接'
+                upstreamConnections: '上游连接',
+                neuronLabel: '神经元'
             }
         };
 
@@ -1015,12 +1018,32 @@
                 document.querySelector('#statusText > span').textContent = t.totalCount + ' ';
                 document.querySelector('#statusText > span').appendChild(countEl);
             }
+
             // Update legend
             const legendItems = document.querySelectorAll('.legend-item');
             if (legendItems[0]) legendItems[0].innerHTML = `<div class="legend-dot" style="background:#9DD0C7"></div>${t.legendSAp}`;
             if (legendItems[1]) legendItems[1].innerHTML = `<div class="legend-dot" style="background:#D9BDD8"></div>${t.legendSAMP}`;
             if (legendItems[2]) legendItems[2].innerHTML = `<div class="legend-dot" style="background:#E58579"></div>${t.legendSAM}`;
             if (legendItems[3]) legendItems[3].innerHTML = `<div class="legend-dot" style="background:#8AB1D2"></div>${t.legendS_AM}`;
+
+            // Update layer select options text
+            const layerSelect = document.getElementById('layerSelect');
+            if (layerSelect) {
+                Array.from(layerSelect.options).forEach(opt => {
+                    const layerVal = opt.value;
+                    if (!layerVal) return;
+                    const n = parseInt(layerVal, 10);
+                    if (Number.isNaN(n)) return;
+                    if (lang === 'zh') {
+                        // 中文：第 N 层
+                        opt.textContent = `层 ${n}`;
+                    } else {
+                        // 英文：Layer N
+                        opt.textContent = `${t.layer} ${n}`;
+                    }
+                });
+            }
+
             // Update info panel
             const infoItems = document.querySelectorAll('.info-item');
             if (infoItems[0]) infoItems[0].innerHTML = `${t.layer}: <span class="info-value" id="selectedLayer">-</span>`;

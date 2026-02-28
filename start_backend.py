@@ -3,8 +3,8 @@ import subprocess
 import os
 import sys
 
-# 设置工作目录
-work_dir = r"F:\DC25\part1\NeuroBreak-Reproduction\visualization"
+# 设置工作目录为当前项目所在目录
+work_dir = os.path.dirname(os.path.abspath(__file__))
 os.chdir(work_dir)
 
 # 安装依赖并启动后端
